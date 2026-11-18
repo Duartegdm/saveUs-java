@@ -1,0 +1,315 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "SaveUs — ia-service",
+    "description" : "Serviço interno de IA (Spring AI). Gera o resumo e as dicas do Guia do Calor a partir da reserva do idoso. É chamado pelo refugio-service via OpenFeign, com o JWT do idoso repassado no header Authorization.\n",
+    "contact" : {
+      "name" : "Equipe SaveUs — FIAP Global Solution 2026/2"
+    },
+    "version" : "v1"
+  },
+  "servers" : [ {
+    "url" : "http://localhost",
+    "description" : "Generated server url"
+  } ],
+  "security" : [ {
+    "Bearer" : [ ]
+  } ],
+  "tags" : [ {
+    "name" : "Interno: Guia do Calor",
+    "description" : "Não é chamado pelo app. O refugio-service chama via OpenFeign (@FeignClient(name = \"ia-service\"), resolvido pelo Eureka) e repassa o JWT do idoso no header Authorization."
+  } ],
+  "paths" : {
+    "/interno/guia-do-calor" : {
+      "post" : {
+        "tags" : [ "Interno: Guia do Calor" ],
+        "summary" : "Gera resumo e dicas do Guia do Calor com o LLM (IDOSO)",
+        "description" : "Usa `chatClient.prompt().system(...).user(contexto).call().entity(GuiaGerado.class)`: o Spring AI envia o JSON Schema ao modelo e converte a resposta. A saída é conferida (resumo e 3 a 5 dicas). O prompt de sistema proíbe inventar endereços, horários, temperaturas ou telefones, diagnóstico e remédios.",
+        "operationId" : "gerar",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ContextoGuia"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Resumo e dicas gerados",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuiaGerado"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "LLM indisponível ou resposta que não converte (o refugio-service usa o guia padrão)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.6.4",
+                  "title" : "Serviço indisponível",
+                  "status" : 503,
+                  "detail" : "Não foi possível gerar o guia agora. Tente de novo em instantes.",
+                  "instance" : "/interno/guia-do-calor"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Dados inválidos",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "validacao" : {
+                    "summary" : "Campo inválido",
+                    "value" : {
+                      "errors" : {
+                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ],
+                        "capacidade" : [ "A capacidade deve ser maior que zero." ]
+                      },
+                      "status" : 400,
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                      "title" : "Dados inválidos"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, inválido ou expirado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "semToken" : {
+                    "summary" : "Sem token ou token inválido",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Faça login para continuar."
+                    }
+                  },
+                  "expirado" : {
+                    "summary" : "Token expirado (o app volta para o login)",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Sua sessão expirou. Faça login novamente."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "O papel do usuário não permite esta operação",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "papel" : {
+                    "summary" : "Papel sem permissão",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                      "title" : "Acesso negado",
+                      "status" : 403,
+                      "detail" : "Você não tem permissão para isso."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Erro inesperado (sem stack trace)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "interno" : {
+                    "summary" : "Erro inesperado",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                      "title" : "Erro interno",
+                      "status" : 500,
+                      "detail" : "Ocorreu um erro inesperado. Tente novamente em instantes."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "ProblemDetails" : {
+        "description" : "Erro no formato RFC 7807, igual ao do .NET. O app mostra `detail` ao usuário e usa `errors` para marcar cada campo do formulário.",
+        "properties" : {
+          "type" : {
+            "type" : "string",
+            "description" : "Link da RFC que descreve o status",
+            "example" : "https://tools.ietf.org/html/rfc9110#section-15.5.10"
+          },
+          "title" : {
+            "type" : "string",
+            "description" : "Título curto, em português",
+            "example" : "Refúgio com reservas"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Status HTTP",
+            "example" : 409
+          },
+          "detail" : {
+            "type" : "string",
+            "description" : "Mensagem pronta para exibir ao usuário",
+            "example" : "Este refúgio tem reservas ativas para hoje ou datas futuras. Desative-o em vez de excluir."
+          },
+          "instance" : {
+            "type" : "string",
+            "description" : "Caminho da requisição",
+            "example" : "/api/v1/refugios/1"
+          },
+          "errors" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "array",
+              "description" : "Só em erros de validação (400): campo em camelCase → mensagens",
+              "example" : {
+                "capacidade" : [ "A capacidade deve ser maior que zero." ]
+              },
+              "items" : {
+                "type" : "string",
+                "description" : "Só em erros de validação (400): campo em camelCase → mensagens",
+                "example" : "{\"capacidade\":[\"A capacidade deve ser maior que zero.\"]}"
+              }
+            },
+            "description" : "Só em erros de validação (400): campo em camelCase → mensagens",
+            "example" : {
+              "capacidade" : [ "A capacidade deve ser maior que zero." ]
+            }
+          }
+        }
+      },
+      "ContextoGuia" : {
+        "type" : "object",
+        "description" : "Contexto montado pelo refugio-service a partir do banco (Usuario, Reserva e Refugio)",
+        "properties" : {
+          "nomeIdoso" : {
+            "type" : "string",
+            "description" : "Primeiro nome do idoso",
+            "example" : "Maria",
+            "maxLength" : 150,
+            "minLength" : 0
+          },
+          "data" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "Dia do guia (data da reserva ou a data pedida)",
+            "example" : "2026-11-27"
+          },
+          "bairro" : {
+            "type" : "string",
+            "example" : "Penha",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "refugio" : {
+            "$ref" : "#/components/schemas/RefugioContexto",
+            "description" : "Refúgio da próxima reserva; null quando o idoso não tem reserva"
+          }
+        },
+        "required" : [ "data", "nomeIdoso" ]
+      },
+      "RefugioContexto" : {
+        "type" : "object",
+        "properties" : {
+          "nome" : {
+            "type" : "string",
+            "example" : "Biblioteca Municipal da Penha",
+            "maxLength" : 150,
+            "minLength" : 0
+          },
+          "endereco" : {
+            "type" : "string",
+            "example" : "Rua Padre Benedito de Camargo, 400 — Penha",
+            "maxLength" : 310,
+            "minLength" : 0
+          },
+          "abre" : {
+            "type" : "string",
+            "example" : "09:00"
+          },
+          "fecha" : {
+            "type" : "string",
+            "example" : "18:00"
+          },
+          "acessivel" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "abre", "acessivel", "endereco", "fecha", "nome" ]
+      },
+      "Dica" : {
+        "type" : "object",
+        "properties" : {
+          "titulo" : {
+            "type" : "string"
+          },
+          "descricao" : {
+            "type" : "string"
+          }
+        }
+      },
+      "GuiaGerado" : {
+        "type" : "object",
+        "description" : "Saída estruturada do LLM, convertida pelo Spring AI",
+        "properties" : {
+          "resumo" : {
+            "type" : "string",
+            "example" : "Amanhã o calor continua forte. Sua vaga na Biblioteca Municipal da Penha está garantida das 9h às 18h."
+          },
+          "dicas" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Dica"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes" : {
+      "Bearer" : {
+        "type" : "http",
+        "description" : "Token devolvido por POST /auth/login (do Java ou do .NET: os dois emitem o mesmo JWT). Cole só o token, sem o prefixo Bearer.",
+        "scheme" : "bearer",
+        "bearerFormat" : "JWT"
+      }
+    }
+  }
+}

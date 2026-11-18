@@ -1,0 +1,64 @@
+# Blueprint do Render: Dashboard > New > Blueprint > escolha este repositório.
+# Os três serviços usam o mesmo Dockerfile; o Render repassa as variáveis de ambiente como build args (SERVICO).
+# No plano free não existe rede privada entre serviços, então tudo se fala pelas URLs públicas (HTTPS)
+# e os clientes se registram no Eureka com o hostname público (perfil "render").
+services:
+  - type: web
+    name: saveus-eureka
+    runtime: docker
+    plan: free
+    region: virginia
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: SERVICO
+        value: eureka-server
+
+  - type: web
+    name: saveus-ia
+    runtime: docker
+    plan: free
+    region: virginia
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SERVICO
+        value: ia-service
+      - key: SPRING_PROFILES_ACTIVE
+        value: render
+      - key: EUREKA_URL            # https://<url-do-saveus-eureka>/eureka/
+        sync: false
+      - key: JWT_CHAVE             # a mesma Jwt__Chave do .NET
+        sync: false
+      - key: SPRING_AI_PROVEDOR
+        value: openai
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODELO
+        value: gpt-4o-mini
+
+  - type: web
+    name: saveus-refugio
+    runtime: docker
+    plan: free
+    region: virginia
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SERVICO
+        value: refugio-service
+      - key: SPRING_PROFILES_ACTIVE
+        value: render
+      - key: EUREKA_URL            # https://<url-do-saveus-eureka>/eureka/
+        sync: false
+      - key: JWT_CHAVE
+        sync: false
+      - key: SPRING_DATASOURCE_URL
+        value: jdbc:oracle:thin:@oracle.fiap.com.br:1521/ORCL
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false

@@ -1,0 +1,73 @@
+plugins {
+    id 'org.springframework.boot' version '3.5.16' apply false
+    id 'io.spring.dependency-management' version '1.1.7' apply false
+}
+
+ext {
+    set('springCloudVersion', '2025.0.3')
+    set('springAiVersion', '1.1.8')
+    set('springdocVersion', '2.8.13')
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'io.spring.dependency-management'
+
+    group = 'br.com.fiap.saveus'
+    version = '0.0.1-SNAPSHOT'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+            mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+            mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        // Nomes dos parâmetros em runtime: usados nos erros de validação de query params.
+        options.compilerArgs << '-parameters'
+    }
+
+    tasks.named('test') {
+        useJUnitPlatform()
+    }
+}
+
+// bootRun lê o .env da raiz (JWT_CHAVE, Oracle, OpenAI), sem precisar exportar as variáveis.
+// Variáveis já definidas no terminal têm prioridade sobre o .env.
+def variaveisDoEnv = [:]
+def arquivoEnv = rootProject.file('.env')
+if (arquivoEnv.exists()) {
+    arquivoEnv.eachLine { linha ->
+        def texto = linha.trim()
+        if (texto && !texto.startsWith('#') && texto.contains('=')) {
+            def (chave, valor) = [texto.substring(0, texto.indexOf('=')).trim(), texto.substring(texto.indexOf('=') + 1).trim()]
+            if ((valor.startsWith('"') && valor.endsWith('"')) || (valor.startsWith("'") && valor.endsWith("'"))) {
+                valor = valor.substring(1, valor.length() - 1)
+            }
+            if (valor && System.getenv(chave) == null) {
+                variaveisDoEnv[chave] = valor
+            }
+        }
+    }
+}
+
+subprojects {
+    plugins.withId('org.springframework.boot') {
+        tasks.named('bootRun') {
+            environment variaveisDoEnv
+        }
+    }
+}

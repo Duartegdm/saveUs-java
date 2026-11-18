@@ -1,0 +1,14 @@
+description = 'eureka-server'
+
+apply plugin: 'org.springframework.boot'
+
+dependencies {
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-server'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Só o jar executável do Spring Boot (sem o -plain.jar).
+tasks.named('jar') {
+    enabled = false
+}

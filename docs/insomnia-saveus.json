@@ -1,0 +1,1004 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-11-17T22:30:00.000Z",
+  "__export_source": "saveus.java",
+  "resources": [
+    {
+      "_id": "wrk_saveus",
+      "_type": "workspace",
+      "parentId": null,
+      "scope": "collection",
+      "name": "SaveUs — Backend Java",
+      "description": "Fluxo completo da API Java do SaveUs (refugio-service e ia-service). Rode as pastas em ordem: 1. Autenticação gera os tokens usados nas demais. Usuários de teste: gestor@refugio.com, maria@email.com e jose@email.com, senha Senha@123."
+    },
+    {
+      "_id": "env_saveus_base",
+      "_type": "environment",
+      "parentId": "wrk_saveus",
+      "name": "Base Environment",
+      "data": {
+        "refugio_url": "http://localhost:8080",
+        "ia_url": "http://localhost:8082",
+        "eureka_url": "http://localhost:8761",
+        "senha": "Senha@123",
+        "data_guia": "2026-11-27",
+        "token_gestor": "{% response 'body', 'req_auth_login_gestor', 'b64::JC50b2tlbg==::46b', 'no-history', 60 %}",
+        "token_maria": "{% response 'body', 'req_auth_login_maria', 'b64::JC50b2tlbg==::46b', 'no-history', 60 %}",
+        "token_jose": "{% response 'body', 'req_auth_login_jose', 'b64::JC50b2tlbg==::46b', 'no-history', 60 %}",
+        "refugio_id": "{% response 'body', 'req_ref_criar', 'b64::JC5pZA==::46b', 'never', 60 %}"
+      }
+    },
+    {
+      "_id": "env_saveus_local",
+      "_type": "environment",
+      "parentId": "env_saveus_base",
+      "name": "Local",
+      "data": {
+        "refugio_url": "http://localhost:8080",
+        "ia_url": "http://localhost:8082"
+      }
+    },
+    {
+      "_id": "env_saveus_android",
+      "_type": "environment",
+      "parentId": "env_saveus_base",
+      "name": "Emulador / rede local",
+      "data": {
+        "refugio_url": "http://10.0.2.2:8080",
+        "ia_url": "http://10.0.2.2:8082"
+      }
+    },
+    {
+      "_id": "env_saveus_nuvem",
+      "_type": "environment",
+      "parentId": "env_saveus_base",
+      "name": "Nuvem (preencher)",
+      "data": {
+        "refugio_url": "https://SEU-DEPLOY",
+        "ia_url": "https://SEU-DEPLOY-IA"
+      }
+    },
+    {
+      "_id": "fld_0_saude",
+      "_type": "request_group",
+      "parentId": "wrk_saveus",
+      "name": "0. Saúde e documentação",
+      "description": "Confere se os serviços subiram e se estão no Eureka.",
+      "metaSortKey": 1
+    },
+    {
+      "_id": "req_saude_refugio",
+      "_type": "request",
+      "parentId": "fld_0_saude",
+      "name": "Health refugio-service",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/actuator/health",
+      "description": "",
+      "metaSortKey": 1,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_saude_ia",
+      "_type": "request",
+      "parentId": "fld_0_saude",
+      "name": "Health ia-service",
+      "method": "GET",
+      "url": "{{ _.ia_url }}/actuator/health",
+      "description": "",
+      "metaSortKey": 2,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_eureka_apps",
+      "_type": "request",
+      "parentId": "fld_0_saude",
+      "name": "Serviços registrados no Eureka",
+      "method": "GET",
+      "url": "{{ _.eureka_url }}/eureka/apps",
+      "description": "Deve listar REFUGIO-SERVICE e IA-SERVICE com status UP (o registro leva até ~30 s).",
+      "metaSortKey": 3,
+      "headers": [
+        {
+          "name": "Accept",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_openapi_refugio",
+      "_type": "request",
+      "parentId": "fld_0_saude",
+      "name": "OpenAPI refugio-service",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/v3/api-docs",
+      "description": "",
+      "metaSortKey": 4,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_openapi_ia",
+      "_type": "request",
+      "parentId": "fld_0_saude",
+      "name": "OpenAPI ia-service",
+      "method": "GET",
+      "url": "{{ _.ia_url }}/v3/api-docs",
+      "description": "",
+      "metaSortKey": 5,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "fld_1_auth",
+      "_type": "request_group",
+      "parentId": "wrk_saveus",
+      "name": "1. Autenticação",
+      "description": "Login e cadastro, públicos. O token vale também no backend .NET. Limite: 10 tentativas por minuto por IP (depois, 429 com Retry-After).",
+      "metaSortKey": 2
+    },
+    {
+      "_id": "req_auth_login_gestor",
+      "_type": "request",
+      "parentId": "fld_1_auth",
+      "name": "Login GESTOR",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/auth/login",
+      "description": "200 com token, expiraEm (offset -03:00) e usuario.papel = GESTOR. Alimenta {{ _.token_gestor }}.",
+      "metaSortKey": 6,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"gestor@refugio.com\",\n  \"senha\": \"{{ _.senha }}\"\n}"
+      },
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_auth_login_maria",
+      "_type": "request",
+      "parentId": "fld_1_auth",
+      "name": "Login IDOSO (Maria)",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/auth/login",
+      "description": "Idosa com bairro Penha. Alimenta {{ _.token_maria }}.",
+      "metaSortKey": 7,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"maria@email.com\",\n  \"senha\": \"{{ _.senha }}\"\n}"
+      },
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_auth_login_jose",
+      "_type": "request",
+      "parentId": "fld_1_auth",
+      "name": "Login IDOSO (José)",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/auth/login",
+      "description": "Idoso sem reserva. Alimenta {{ _.token_jose }}.",
+      "metaSortKey": 8,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"jose@email.com\",\n  \"senha\": \"{{ _.senha }}\"\n}"
+      },
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_auth_login_errado",
+      "_type": "request",
+      "parentId": "fld_1_auth",
+      "name": "Login com senha errada → 401",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/auth/login",
+      "description": "401 Credenciais inválidas / \"E-mail ou senha incorretos.\" (mesma mensagem para e-mail inexistente).",
+      "metaSortKey": 9,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"gestor@refugio.com\",\n  \"senha\": \"errada\"\n}"
+      },
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_auth_login_vazio",
+      "_type": "request",
+      "parentId": "fld_1_auth",
+      "name": "Login sem campos → 400",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/auth/login",
+      "description": "400 Dados inválidos com errors.email e errors.senha.",
+      "metaSortKey": 10,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"\"\n}"
+      },
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_auth_registrar",
+      "_type": "request",
+      "parentId": "fld_1_auth",
+      "name": "Registrar idoso (e-mail aleatório) → 201",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/auth/registrar",
+      "description": "201 com Location /api/v1/usuarios/me e papel IDOSO (sem token).",
+      "metaSortKey": 11,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Ana Lima\",\n  \"email\": \"ana.{% uuid 'v4' %}@email.com\",\n  \"senha\": \"Senha@123\"\n}"
+      },
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_auth_registrar_dup",
+      "_type": "request",
+      "parentId": "fld_1_auth",
+      "name": "Registrar e-mail existente → 409",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/auth/registrar",
+      "description": "409 E-mail já cadastrado.",
+      "metaSortKey": 12,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Maria Souza\",\n  \"email\": \"maria@email.com\",\n  \"senha\": \"Senha@123\"\n}"
+      },
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_auth_registrar_fraca",
+      "_type": "request",
+      "parentId": "fld_1_auth",
+      "name": "Registrar senha fraca → 400",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/auth/registrar",
+      "description": "400 com errors.senha = \"A senha deve ter uma letra maiúscula.\"",
+      "metaSortKey": 13,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Ana\",\n  \"email\": \"ana@email.com\",\n  \"senha\": \"senhafraca1\"\n}"
+      },
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "fld_2_refugios",
+      "_type": "request_group",
+      "parentId": "wrk_saveus",
+      "name": "2. Gestor — Refúgios (CRUD)",
+      "description": "Fluxo do gestor: listar → criar → consultar → editar → pausar → reativar → excluir. O id do refúgio criado é reaproveitado automaticamente ({{ _.refugio_id }}).",
+      "metaSortKey": 3
+    },
+    {
+      "_id": "req_ref_listar",
+      "_type": "request",
+      "parentId": "fld_2_refugios",
+      "name": "Listar refúgios (paginado)",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/api/v1/refugios?pagina=1&tamanho=10",
+      "description": "Envelope {itens, pagina, tamanho, totalItens, totalPaginas}. Ordenado por nome. Vagas de hoje (São Paulo).",
+      "metaSortKey": 14,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_ref_listar_filtro",
+      "_type": "request",
+      "parentId": "fld_2_refugios",
+      "name": "Listar com filtros (bairro, data, ativo)",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/api/v1/refugios?bairro=penha&data={{ _.data_guia }}&ativo=true&pagina=1&tamanho=5",
+      "description": "Bairro exato sem diferenciar maiúsculas; vagas calculadas para a data.",
+      "metaSortKey": 15,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_ref_criar",
+      "_type": "request",
+      "parentId": "fld_2_refugios",
+      "name": "Criar refúgio → 201",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/api/v1/refugios",
+      "description": "201 com Location /api/v1/refugios/{id}. CEP normalizado para 03601-000 e vagasDisponiveis = capacidade.",
+      "metaSortKey": 16,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Biblioteca Municipal da Penha (teste Insomnia)\",\n  \"tipo\": \"BIBLIOTECA\",\n  \"cep\": \"03601000\",\n  \"endereco\": \"Rua Padre Benedito de Camargo, 400\",\n  \"bairro\": \"Penha\",\n  \"capacidade\": 40,\n  \"abre\": \"09:00\",\n  \"fecha\": \"18:00\",\n  \"acessivel\": true,\n  \"ativo\": true\n}"
+      },
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_ref_obter",
+      "_type": "request",
+      "parentId": "fld_2_refugios",
+      "name": "Obter refúgio criado",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/api/v1/refugios/{{ _.refugio_id }}?data={{ _.data_guia }}",
+      "description": "",
+      "metaSortKey": 17,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_ref_editar",
+      "_type": "request",
+      "parentId": "fld_2_refugios",
+      "name": "Editar refúgio (PUT)",
+      "method": "PUT",
+      "url": "{{ _.refugio_url }}/api/v1/refugios/{{ _.refugio_id }}",
+      "description": "O PUT substitui o refúgio inteiro: todos os campos são obrigatórios.",
+      "metaSortKey": 18,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Biblioteca Municipal da Penha (teste Insomnia)\",\n  \"tipo\": \"BIBLIOTECA\",\n  \"cep\": \"03601000\",\n  \"endereco\": \"Rua Padre Benedito de Camargo, 400\",\n  \"bairro\": \"Penha\",\n  \"capacidade\": 60,\n  \"abre\": \"09:00\",\n  \"fecha\": \"20:00\",\n  \"acessivel\": false,\n  \"ativo\": true\n}"
+      },
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_ref_pausar",
+      "_type": "request",
+      "parentId": "fld_2_refugios",
+      "name": "Pausar refúgio (PUT ativo=false)",
+      "method": "PUT",
+      "url": "{{ _.refugio_url }}/api/v1/refugios/{{ _.refugio_id }}",
+      "description": "Pausar é um PUT com ativo=false: o refúgio passa a ter 0 vagas.",
+      "metaSortKey": 19,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Biblioteca Municipal da Penha (teste Insomnia)\",\n  \"tipo\": \"BIBLIOTECA\",\n  \"cep\": \"03601000\",\n  \"endereco\": \"Rua Padre Benedito de Camargo, 400\",\n  \"bairro\": \"Penha\",\n  \"capacidade\": 60,\n  \"abre\": \"09:00\",\n  \"fecha\": \"20:00\",\n  \"acessivel\": false,\n  \"ativo\": false\n}"
+      },
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_ref_reativar",
+      "_type": "request",
+      "parentId": "fld_2_refugios",
+      "name": "Reativar refúgio (PUT ativo=true)",
+      "method": "PUT",
+      "url": "{{ _.refugio_url }}/api/v1/refugios/{{ _.refugio_id }}",
+      "description": "",
+      "metaSortKey": 20,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Biblioteca Municipal da Penha (teste Insomnia)\",\n  \"tipo\": \"BIBLIOTECA\",\n  \"cep\": \"03601000\",\n  \"endereco\": \"Rua Padre Benedito de Camargo, 400\",\n  \"bairro\": \"Penha\",\n  \"capacidade\": 60,\n  \"abre\": \"09:00\",\n  \"fecha\": \"20:00\",\n  \"acessivel\": false,\n  \"ativo\": true\n}"
+      },
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_ref_excluir",
+      "_type": "request",
+      "parentId": "fld_2_refugios",
+      "name": "Excluir refúgio criado → 204",
+      "method": "DELETE",
+      "url": "{{ _.refugio_url }}/api/v1/refugios/{{ _.refugio_id }}",
+      "description": "204 sem corpo. Se houver reserva ATIVA para hoje ou depois, responde 409 \"Refúgio com reservas\".",
+      "metaSortKey": 21,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_ref_obter_excluido",
+      "_type": "request",
+      "parentId": "fld_2_refugios",
+      "name": "Obter refúgio excluído → 404",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/api/v1/refugios/{{ _.refugio_id }}",
+      "description": "404 Refúgio não encontrado / \"Este refúgio não está mais disponível.\"",
+      "metaSortKey": 22,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_ref_excluir_reserva",
+      "_type": "request",
+      "parentId": "fld_2_refugios",
+      "name": "Excluir refúgio com reserva → 409",
+      "method": "DELETE",
+      "url": "{{ _.refugio_url }}/api/v1/refugios/1",
+      "description": "Troque o id por um refúgio que tenha reserva ATIVA de hoje em diante (crie a reserva pelo app/.NET).",
+      "metaSortKey": 23,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "fld_3_erros",
+      "_type": "request_group",
+      "parentId": "wrk_saveus",
+      "name": "3. Validação e segurança",
+      "description": "Erros no formato ProblemDetails (application/problem+json).",
+      "metaSortKey": 4
+    },
+    {
+      "_id": "req_err_validacao",
+      "_type": "request",
+      "parentId": "fld_3_erros",
+      "name": "Criar com campos inválidos → 400 por campo",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/api/v1/refugios",
+      "description": "errors.nome, errors.cep, errors.capacidade e errors.fecha (horário de fechamento depois da abertura).",
+      "metaSortKey": 24,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"\",\n  \"tipo\": \"BIBLIOTECA\",\n  \"cep\": \"123\",\n  \"endereco\": \"Rua Padre Benedito de Camargo, 400\",\n  \"bairro\": \"Penha\",\n  \"capacidade\": 0,\n  \"abre\": \"18:00\",\n  \"fecha\": \"09:00\",\n  \"acessivel\": true,\n  \"ativo\": true\n}"
+      },
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_err_numero_string",
+      "_type": "request",
+      "parentId": "fld_3_erros",
+      "name": "Número em string → 400",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/api/v1/refugios",
+      "description": "errors.capacidade = \"Valor em formato inválido.\"",
+      "metaSortKey": 25,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Biblioteca Municipal da Penha (teste Insomnia)\",\n  \"tipo\": \"BIBLIOTECA\",\n  \"cep\": \"03601000\",\n  \"endereco\": \"Rua Padre Benedito de Camargo, 400\",\n  \"bairro\": \"Penha\",\n  \"capacidade\": \"40\",\n  \"abre\": \"09:00\",\n  \"fecha\": \"18:00\",\n  \"acessivel\": true,\n  \"ativo\": true\n}"
+      },
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_err_enum",
+      "_type": "request",
+      "parentId": "fld_3_erros",
+      "name": "Tipo inexistente → 400",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/api/v1/refugios",
+      "description": "errors.tipo.",
+      "metaSortKey": 26,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Biblioteca Municipal da Penha (teste Insomnia)\",\n  \"tipo\": \"HOSPITAL\",\n  \"cep\": \"03601000\",\n  \"endereco\": \"Rua Padre Benedito de Camargo, 400\",\n  \"bairro\": \"Penha\",\n  \"capacidade\": 40,\n  \"abre\": \"09:00\",\n  \"fecha\": \"18:00\",\n  \"acessivel\": true,\n  \"ativo\": true\n}"
+      },
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_err_data",
+      "_type": "request",
+      "parentId": "fld_3_erros",
+      "name": "Data em formato errado → 400",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/api/v1/refugios?data=27-11-2026&tamanho=99",
+      "description": "errors.data e errors.tamanho.",
+      "metaSortKey": 27,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_err_sem_token",
+      "_type": "request",
+      "parentId": "fld_3_erros",
+      "name": "Sem token → 401",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/api/v1/refugios",
+      "description": "401 Não autenticado / \"Faça login para continuar.\"",
+      "metaSortKey": 28,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_err_token_invalido",
+      "_type": "request",
+      "parentId": "fld_3_erros",
+      "name": "Token inválido → 401",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/api/v1/refugios",
+      "description": "",
+      "metaSortKey": 29,
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.invalido"
+        }
+      ],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_err_idoso_cria",
+      "_type": "request",
+      "parentId": "fld_3_erros",
+      "name": "Idoso tentando criar refúgio → 403",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/api/v1/refugios",
+      "description": "403 Acesso negado: escrita só para GESTOR.",
+      "metaSortKey": 30,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Biblioteca Municipal da Penha (teste Insomnia)\",\n  \"tipo\": \"BIBLIOTECA\",\n  \"cep\": \"03601000\",\n  \"endereco\": \"Rua Padre Benedito de Camargo, 400\",\n  \"bairro\": \"Penha\",\n  \"capacidade\": 40,\n  \"abre\": \"09:00\",\n  \"fecha\": \"18:00\",\n  \"acessivel\": true,\n  \"ativo\": true\n}"
+      },
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_maria }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_err_idoso_cep",
+      "_type": "request",
+      "parentId": "fld_3_erros",
+      "name": "Idoso consultando CEP → 403",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/api/v1/cep/03601000",
+      "description": "",
+      "metaSortKey": 31,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_maria }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "fld_4_cep",
+      "_type": "request_group",
+      "parentId": "wrk_saveus",
+      "name": "4. CEP (ViaCEP via RestClient)",
+      "description": "Preenche o formulário do gestor.",
+      "metaSortKey": 5
+    },
+    {
+      "_id": "req_cep_ok",
+      "_type": "request",
+      "parentId": "fld_4_cep",
+      "name": "Consultar CEP",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/api/v1/cep/01001-000",
+      "description": "{cep, endereco, bairro, cidade, uf}.",
+      "metaSortKey": 32,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_cep_invalido",
+      "_type": "request",
+      "parentId": "fld_4_cep",
+      "name": "CEP sem 8 dígitos → 400",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/api/v1/cep/0360",
+      "description": "",
+      "metaSortKey": 33,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_cep_inexistente",
+      "_type": "request",
+      "parentId": "fld_4_cep",
+      "name": "CEP inexistente → 404",
+      "method": "GET",
+      "url": "{{ _.refugio_url }}/api/v1/cep/99999999",
+      "description": "",
+      "metaSortKey": 34,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "fld_5_ia",
+      "_type": "request_group",
+      "parentId": "wrk_saveus",
+      "name": "5. IA — Guia do Calor (Spring AI)",
+      "description": "refugio-service → OpenFeign/Eureka → ia-service → OpenAI. Se o LLM falhar, 200 com geradoPorIa=false.",
+      "metaSortKey": 6
+    },
+    {
+      "_id": "req_ia_guia_maria",
+      "_type": "request",
+      "parentId": "fld_5_ia",
+      "name": "Guia da Maria (hoje)",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/api/v1/ia/guia-do-calor",
+      "description": "Usa a próxima reserva ATIVA da Maria. refugio é null se ela não tiver reserva futura.",
+      "metaSortKey": 35,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_maria }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_ia_guia_data",
+      "_type": "request",
+      "parentId": "fld_5_ia",
+      "name": "Guia da Maria a partir de uma data",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/api/v1/ia/guia-do-calor",
+      "description": "",
+      "metaSortKey": 36,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"data\": \"{{ _.data_guia }}\"\n}"
+      },
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_maria }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_ia_guia_jose",
+      "_type": "request",
+      "parentId": "fld_5_ia",
+      "name": "Guia do José (sem reserva)",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/api/v1/ia/guia-do-calor",
+      "description": "Sem reserva: refugio = null e as dicas sugerem procurar um refúgio no app.",
+      "metaSortKey": 37,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_jose }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_ia_guia_gestor",
+      "_type": "request",
+      "parentId": "fld_5_ia",
+      "name": "Gestor no guia → 403",
+      "method": "POST",
+      "url": "{{ _.refugio_url }}/api/v1/ia/guia-do-calor",
+      "description": "O guia é só para IDOSO.",
+      "metaSortKey": 38,
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_gestor }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "fld_6_interno",
+      "_type": "request_group",
+      "parentId": "wrk_saveus",
+      "name": "6. ia-service direto (interno)",
+      "description": "Normalmente só o refugio-service chama este endpoint, via Feign, repassando o JWT do idoso.",
+      "metaSortKey": 7
+    },
+    {
+      "_id": "req_int_guia",
+      "_type": "request",
+      "parentId": "fld_6_interno",
+      "name": "Gerar guia (com reserva)",
+      "method": "POST",
+      "url": "{{ _.ia_url }}/interno/guia-do-calor",
+      "description": "200 com {resumo, dicas}. 503 se o LLM estiver fora ou sem OPENAI_API_KEY.",
+      "metaSortKey": 39,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nomeIdoso\": \"Maria\",\n  \"data\": \"{{ _.data_guia }}\",\n  \"bairro\": \"Penha\",\n  \"refugio\": {\n    \"nome\": \"Biblioteca Municipal da Penha\",\n    \"endereco\": \"Rua Padre Benedito de Camargo, 400 — Penha\",\n    \"abre\": \"09:00\",\n    \"fecha\": \"18:00\",\n    \"acessivel\": true\n  }\n}"
+      },
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_maria }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_int_guia_sem_refugio",
+      "_type": "request",
+      "parentId": "fld_6_interno",
+      "name": "Gerar guia (sem reserva)",
+      "method": "POST",
+      "url": "{{ _.ia_url }}/interno/guia-do-calor",
+      "description": "",
+      "metaSortKey": 40,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nomeIdoso\": \"José\",\n  \"data\": \"{{ _.data_guia }}\",\n  \"bairro\": null,\n  \"refugio\": null\n}"
+      },
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.token_jose }}",
+        "prefix": "Bearer"
+      },
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_int_sem_token",
+      "_type": "request",
+      "parentId": "fld_6_interno",
+      "name": "Sem token → 401",
+      "method": "POST",
+      "url": "{{ _.ia_url }}/interno/guia-do-calor",
+      "description": "O endpoint interno não fica aberto: exige o JWT de um IDOSO.",
+      "metaSortKey": 41,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nomeIdoso\": \"Maria\",\n  \"data\": \"{{ _.data_guia }}\",\n  \"bairro\": \"Penha\",\n  \"refugio\": {\n    \"nome\": \"Biblioteca Municipal da Penha\",\n    \"endereco\": \"Rua Padre Benedito de Camargo, 400 — Penha\",\n    \"abre\": \"09:00\",\n    \"fecha\": \"18:00\",\n    \"acessivel\": true\n  }\n}"
+      },
+      "authentication": {},
+      "settingFollowRedirects": "global"
+    }
+  ]
+}

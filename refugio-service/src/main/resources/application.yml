@@ -1,0 +1,96 @@
+server:
+  port: ${PORT:8080}
+  error:
+    include-stacktrace: never
+    include-message: never
+
+spring:
+  application:
+    name: refugio-service
+
+  # Mesmo schema Oracle do .NET (tabelas T_RFG_*). Credenciais só por variável de ambiente.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      maximum-pool-size: ${DB_POOL:5}
+
+  jpa:
+    # O schema pertence ao .NET: o Java não cria nem altera tabelas. "none" e não "validate",
+    # porque o validate do Hibernate pode recusar NVARCHAR2 mesmo com o mapeamento funcionando.
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        # Colunas de texto são NVARCHAR2: envia como N-string para preservar acentos.
+        use_nationalized_character_data: true
+        jdbc:
+          time_zone: UTC
+
+  cloud:
+    openfeign:
+      client:
+        config:
+          ia-service:
+            connect-timeout: 3000
+            # Se o LLM passar de 3 minutos, o guia padrão é usado.
+            read-timeout: ${IA_TIMEOUT_MS:180000}
+            logger-level: basic
+
+  cache:
+    cache-names: guias-do-calor
+
+saveus:
+  jwt:
+    chave: ${JWT_CHAVE:}
+    emissor: refugio-api
+    audiencia: refugio-app
+    expiracao-minutos: 120
+  cors:
+    origens: ${CORS_ORIGENS:http://localhost:8081,http://localhost:19006}
+  viacep:
+    url: https://viacep.com.br/ws/
+    timeout: 5s
+  limite-auth:
+    requisicoes: ${LIMITE_AUTH_REQUISICOES:10}
+    janela-segundos: 60
+  openapi:
+    titulo: SaveUs — refugio-service
+    descricao: >
+      Área do gestor (CRUD de refúgios e CEP), login com o mesmo JWT do .NET e o Guia do Calor com IA.
+      Todo erro sai em ProblemDetails. Para testar, faça POST /auth/login, copie o token e use o botão Authorize.
+      Usuários de teste (senha Senha@123): gestor@refugio.com (GESTOR), maria@email.com e jose@email.com (IDOSO).
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  default-produces-media-type: application/json
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    doc-expansion: list
+    persist-authorization: true
+    display-request-duration: true
+    try-it-out-enabled: true
+    default-models-expand-depth: 1

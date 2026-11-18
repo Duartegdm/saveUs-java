@@ -1,0 +1,23 @@
+description = 'refugio-service'
+
+apply plugin: 'org.springframework.boot'
+
+dependencies {
+    implementation project(':saveus-common')
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    runtimeOnly 'com.oracle.database.jdbc:ojdbc11'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    // Só nos testes automatizados (MockMvc); a aplicação usa sempre o Oracle.
+    testRuntimeOnly 'com.h2database:h2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Só o jar executável do Spring Boot (sem o -plain.jar).
+tasks.named('jar') {
+    enabled = false
+}

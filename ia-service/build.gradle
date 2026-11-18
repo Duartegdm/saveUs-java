@@ -1,0 +1,20 @@
+description = 'ia-service'
+
+apply plugin: 'org.springframework.boot'
+
+dependencies {
+    implementation project(':saveus-common')
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    // Provedor escolhido por SPRING_AI_PROVEDOR (ollama, padrão, ou openai).
+    implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Só o jar executável do Spring Boot (sem o -plain.jar).
+tasks.named('jar') {
+    enabled = false
+}

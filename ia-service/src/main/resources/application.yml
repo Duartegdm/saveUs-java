@@ -1,0 +1,81 @@
+server:
+  port: ${PORT:8082}
+  error:
+    include-stacktrace: never
+    include-message: never
+
+spring:
+  application:
+    name: ia-service
+
+  ai:
+    # Provedor do chat: openai (padrão: rápido e sem GPU) ou ollama (local, para rodar offline).
+    model:
+      chat: ${SPRING_AI_PROVEDOR:openai}
+      embedding: none
+      image: none
+      audio:
+        speech: none
+        transcription: none
+      moderation: none
+    # Sem novas tentativas: o refugio-service espera até 3 minutos e cai no guia padrão se passar disso.
+    retry:
+      max-attempts: 1
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        options:
+          model: ${OLLAMA_MODELO:llama3.2}
+          temperature: 0.3
+    openai:
+      # A chave vem só da variável de ambiente. Sem ela o serviço sobe, mas o guia cai no modo padrão.
+      api-key: ${OPENAI_API_KEY:defina-OPENAI_API_KEY}
+      chat:
+        options:
+          model: ${OPENAI_MODELO:gpt-4o-mini}
+          temperature: 0.3
+
+  # Timeout do RestClient usado pelo Spring AI para falar com o LLM.
+  http:
+    client:
+      connect-timeout: 5s
+      # Um pouco abaixo dos 3 min do refugio-service, para o ia-service responder 503 antes do Feign desistir.
+      read-timeout: ${LLM_TIMEOUT:175s}
+
+saveus:
+  jwt:
+    chave: ${JWT_CHAVE:}
+    emissor: refugio-api
+    audiencia: refugio-app
+  openapi:
+    titulo: SaveUs — ia-service
+    descricao: >
+      Serviço interno de IA (Spring AI). Gera o resumo e as dicas do Guia do Calor a partir da reserva do idoso.
+      É chamado pelo refugio-service via OpenFeign, com o JWT do idoso repassado no header Authorization.
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  default-produces-media-type: application/json
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    doc-expansion: list
+    persist-authorization: true
+    display-request-duration: true
+    try-it-out-enabled: true
+    default-models-expand-depth: 1

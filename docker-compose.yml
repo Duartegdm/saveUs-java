@@ -1,0 +1,72 @@
+# Sobe Eureka, ia-service e refugio-service. Configuração no .env (veja .env.example).
+#   cp .env.example .env          (preencha JWT_CHAVE e as credenciais do Oracle)
+#   docker compose up -d --build
+#   docker compose --profile ollama up -d --build     (opcional: Ollama local, com SPRING_AI_PROVEDOR=ollama)
+#
+#   Eureka:           http://localhost:8761
+#   refugio-service:  http://localhost:8080/swagger-ui/index.html
+#   ia-service:       http://localhost:8082/swagger-ui/index.html
+
+services:
+  eureka-server:
+    build:
+      context: .
+      args:
+        SERVICO: eureka-server
+    container_name: saveus-eureka
+    restart: unless-stopped
+    environment:
+      EUREKA_HOSTNAME: eureka-server
+    ports:
+      - "8761:8761"
+
+  ia-service:
+    build:
+      context: .
+      args:
+        SERVICO: ia-service
+    container_name: saveus-ia
+    restart: unless-stopped
+    depends_on:
+      - eureka-server
+    environment:
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      JWT_CHAVE: ${JWT_CHAVE:?Defina JWT_CHAVE no .env com pelo menos 32 caracteres}
+      SPRING_AI_PROVEDOR: ${SPRING_AI_PROVEDOR:-openai}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL_DOCKER:-http://ollama:11434}
+      OLLAMA_MODELO: ${OLLAMA_MODELO:-llama3.2}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODELO: ${OPENAI_MODELO:-gpt-4o-mini}
+    ports:
+      - "8082:8082"
+
+  refugio-service:
+    build:
+      context: .
+      args:
+        SERVICO: refugio-service
+    container_name: saveus-refugio
+    restart: unless-stopped
+    depends_on:
+      - eureka-server
+      - ia-service
+    environment:
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      JWT_CHAVE: ${JWT_CHAVE:?Defina JWT_CHAVE no .env com pelo menos 32 caracteres}
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:?Defina SPRING_DATASOURCE_URL no .env}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:?Defina SPRING_DATASOURCE_USERNAME no .env}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?Defina SPRING_DATASOURCE_PASSWORD no .env}
+    ports:
+      - "8080:8080"
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: saveus-ollama
+    profiles: ["ollama"]
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+
+volumes:
+  ollama:

@@ -1,0 +1,14 @@
+# Perfil "render" (SPRING_PROFILES_ACTIVE=render): no Render free não há rede privada,
+# então o serviço se registra no Eureka com o hostname público e porta HTTPS 443.
+# O RENDER_EXTERNAL_HOSTNAME é preenchido pelo próprio Render.
+eureka:
+  instance:
+    prefer-ip-address: false
+    hostname: ${RENDER_EXTERNAL_HOSTNAME}
+    instance-id: ${RENDER_EXTERNAL_HOSTNAME}
+    non-secure-port-enabled: false
+    secure-port-enabled: true
+    secure-port: 443
+    home-page-url: https://${RENDER_EXTERNAL_HOSTNAME}/
+    status-page-url: https://${RENDER_EXTERNAL_HOSTNAME}/actuator/health
+    health-check-url: https://${RENDER_EXTERNAL_HOSTNAME}/actuator/health

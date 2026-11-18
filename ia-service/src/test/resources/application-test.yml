@@ -1,0 +1,10 @@
+spring:
+  cloud:
+    discovery:
+      enabled: false
+eureka:
+  client:
+    enabled: false
+saveus:
+  jwt:
+    chave: chave-de-teste-com-mais-de-32-caracteres-123456

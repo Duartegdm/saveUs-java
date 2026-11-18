@@ -1,0 +1,1790 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "SaveUs — refugio-service",
+    "description" : "Área do gestor (CRUD de refúgios e CEP), login com o mesmo JWT do .NET e o Guia do Calor com IA. Todo erro sai em ProblemDetails. Para testar, faça POST /auth/login, copie o token e use o botão Authorize. Usuários de teste (senha Senha@123): gestor@refugio.com (GESTOR), maria@email.com e jose@email.com (IDOSO).\n",
+    "contact" : {
+      "name" : "Equipe SaveUs — FIAP Global Solution 2026/2"
+    },
+    "version" : "v1"
+  },
+  "servers" : [ {
+    "url" : "http://localhost",
+    "description" : "Generated server url"
+  } ],
+  "security" : [ {
+    "Bearer" : [ ]
+  } ],
+  "tags" : [ {
+    "name" : "CEP",
+    "description" : "Consulta de endereço no ViaCEP (via RestClient), para o formulário do gestor se preencher sozinho"
+  }, {
+    "name" : "IA: Guia do Calor",
+    "description" : "Guia de proteção contra o calor gerado com Spring AI a partir da reserva real do idoso. O refugio-service monta o contexto (Usuario + Reserva + Refugio) e chama o ia-service via OpenFeign/Eureka, repassando o JWT do idoso."
+  }, {
+    "name" : "Refúgios",
+    "description" : "Refúgios climáticos. Leitura para qualquer usuário logado (IDOSO ou GESTOR); criar, editar, pausar e excluir só para GESTOR. As vagas são calculadas a partir das reservas ATIVA do dia."
+  }, {
+    "name" : "Autenticação",
+    "description" : "Login e cadastro, públicos. O JWT emitido aqui vale também no backend .NET (mesma chave HS256, iss `refugio-api`, aud `refugio-app`, claims `sub`, `email`, `name` e `role`). Limite de 10 tentativas por minuto por IP."
+  } ],
+  "paths" : {
+    "/api/v1/refugios/{id}" : {
+      "get" : {
+        "tags" : [ "Refúgios" ],
+        "summary" : "Detalhe de um refúgio, com as vagas da data informada",
+        "description" : "Usado pela tela de edição do gestor.",
+        "operationId" : "obter",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "description" : "Id do refúgio",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "example" : 1
+        }, {
+          "name" : "data",
+          "in" : "query",
+          "description" : "Data para calcular as vagas, `yyyy-MM-dd`. Padrão: hoje em São Paulo",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "example" : "2026-11-27"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Refúgio encontrado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Refugio"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Refúgio não encontrado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+                  "title" : "Refúgio não encontrado",
+                  "status" : 404,
+                  "detail" : "Este refúgio não está mais disponível.",
+                  "instance" : "/api/v1/refugios/99"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Dados inválidos",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "validacao" : {
+                    "summary" : "Campo inválido",
+                    "value" : {
+                      "errors" : {
+                        "capacidade" : [ "A capacidade deve ser maior que zero." ],
+                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ]
+                      },
+                      "status" : 400,
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                      "title" : "Dados inválidos"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, inválido ou expirado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "semToken" : {
+                    "summary" : "Sem token ou token inválido",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Faça login para continuar."
+                    }
+                  },
+                  "expirado" : {
+                    "summary" : "Token expirado (o app volta para o login)",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Sua sessão expirou. Faça login novamente."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "O papel do usuário não permite esta operação",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "papel" : {
+                    "summary" : "Papel sem permissão",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                      "title" : "Acesso negado",
+                      "status" : 403,
+                      "detail" : "Você não tem permissão para isso."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Erro inesperado (sem stack trace)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "interno" : {
+                    "summary" : "Erro inesperado",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                      "title" : "Erro interno",
+                      "status" : 500,
+                      "detail" : "Ocorreu um erro inesperado. Tente novamente em instantes."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "Refúgios" ],
+        "summary" : "Atualiza um refúgio inteiro: editar, pausar ou reativar (GESTOR)",
+        "description" : "O corpo é o mesmo do POST e substitui o refúgio inteiro. Pausar ou reativar é um PUT com `ativo` trocado; não existe rota separada. Responde com as vagas de hoje.",
+        "operationId" : "atualizar",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "description" : "Id do refúgio",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "example" : 1
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RefugioRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Refúgio atualizado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Refugio"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Campos inválidos (errors por campo)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                  "title" : "Dados inválidos",
+                  "status" : 400,
+                  "errors" : {
+                    "cep" : [ "O CEP deve ter 8 dígitos, como 03601-000." ],
+                    "capacidade" : [ "A capacidade deve ser maior que zero." ],
+                    "fecha" : [ "O horário de fechamento deve ser depois da abertura." ]
+                  }
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Refúgio não encontrado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+                  "title" : "Refúgio não encontrado",
+                  "status" : 404,
+                  "detail" : "Este refúgio não está mais disponível.",
+                  "instance" : "/api/v1/refugios/99"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, inválido ou expirado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "semToken" : {
+                    "summary" : "Sem token ou token inválido",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Faça login para continuar."
+                    }
+                  },
+                  "expirado" : {
+                    "summary" : "Token expirado (o app volta para o login)",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Sua sessão expirou. Faça login novamente."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "O papel do usuário não permite esta operação",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "papel" : {
+                    "summary" : "Papel sem permissão",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                      "title" : "Acesso negado",
+                      "status" : 403,
+                      "detail" : "Você não tem permissão para isso."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Erro inesperado (sem stack trace)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "interno" : {
+                    "summary" : "Erro inesperado",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                      "title" : "Erro interno",
+                      "status" : 500,
+                      "detail" : "Ocorreu um erro inesperado. Tente novamente em instantes."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Refúgios" ],
+        "summary" : "Exclui um refúgio (GESTOR)",
+        "description" : "Só exclui se não houver reserva ATIVA para hoje ou depois (São Paulo); nesse caso, desative o refúgio com um PUT. As reservas passadas saem junto pelo ON DELETE CASCADE do banco.",
+        "operationId" : "excluir",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "description" : "Id do refúgio",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "example" : 1
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Excluído, sem corpo"
+          },
+          "404" : {
+            "description" : "Refúgio não encontrado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+                  "title" : "Refúgio não encontrado",
+                  "status" : 404,
+                  "detail" : "Este refúgio não está mais disponível.",
+                  "instance" : "/api/v1/refugios/99"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Refúgio com reservas ativas: desative em vez de excluir",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+                  "title" : "Refúgio com reservas",
+                  "status" : 409,
+                  "detail" : "Este refúgio tem reservas ativas para hoje ou datas futuras. Desative-o em vez de excluir.",
+                  "instance" : "/api/v1/refugios/1"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Dados inválidos",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "validacao" : {
+                    "summary" : "Campo inválido",
+                    "value" : {
+                      "errors" : {
+                        "capacidade" : [ "A capacidade deve ser maior que zero." ],
+                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ]
+                      },
+                      "status" : 400,
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                      "title" : "Dados inválidos"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, inválido ou expirado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "semToken" : {
+                    "summary" : "Sem token ou token inválido",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Faça login para continuar."
+                    }
+                  },
+                  "expirado" : {
+                    "summary" : "Token expirado (o app volta para o login)",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Sua sessão expirou. Faça login novamente."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "O papel do usuário não permite esta operação",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "papel" : {
+                    "summary" : "Papel sem permissão",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                      "title" : "Acesso negado",
+                      "status" : 403,
+                      "detail" : "Você não tem permissão para isso."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Erro inesperado (sem stack trace)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "interno" : {
+                    "summary" : "Erro inesperado",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                      "title" : "Erro interno",
+                      "status" : 500,
+                      "detail" : "Ocorreu um erro inesperado. Tente novamente em instantes."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/registrar" : {
+      "post" : {
+        "tags" : [ "Autenticação" ],
+        "summary" : "Cria a conta de um idoso",
+        "description" : "O cadastro cria sempre o papel IDOSO; contas de gestor vêm do script do banco. Não devolve token: faça login em seguida. Senha de 8 a 100 caracteres, com maiúscula, minúscula e número.",
+        "operationId" : "registrar",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RegistrarRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Conta criada",
+            "headers" : {
+              "Location" : {
+                "description" : "/api/v1/usuarios/me (perfil, no backend .NET)",
+                "style" : "simple"
+              }
+            },
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UsuarioResumo"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Campos inválidos",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                  "title" : "Dados inválidos",
+                  "status" : 400,
+                  "errors" : {
+                    "email" : [ "Informe um e-mail válido." ],
+                    "senha" : [ "A senha deve ter uma letra maiúscula." ]
+                  }
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "E-mail já cadastrado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+                  "title" : "E-mail já cadastrado",
+                  "status" : 409,
+                  "detail" : "Já existe uma conta com este e-mail. Faça login.",
+                  "instance" : "/auth/registrar"
+                }
+              }
+            }
+          },
+          "429" : {
+            "description" : "Muitas tentativas",
+            "headers" : {
+              "Retry-After" : {
+                "description" : "Segundos até poder tentar de novo",
+                "style" : "simple"
+              }
+            },
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc6585#section-4",
+                  "title" : "Muitas requisições",
+                  "status" : 429,
+                  "detail" : "Você fez muitas tentativas seguidas. Tente de novo em 47 segundos.",
+                  "instance" : "/auth/login"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Erro inesperado (sem stack trace)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "interno" : {
+                    "summary" : "Erro inesperado",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                      "title" : "Erro interno",
+                      "status" : 500,
+                      "detail" : "Ocorreu um erro inesperado. Tente novamente em instantes."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      }
+    },
+    "/auth/login" : {
+      "post" : {
+        "tags" : [ "Autenticação" ],
+        "summary" : "Autentica e devolve o JWT e os dados do usuário",
+        "description" : "O e-mail é buscado com trim e em minúsculas. O token vale 120 minutos e não há refresh token: expirado, o app volta para o login. Usuários de teste: `gestor@refugio.com`, `maria@email.com`, `jose@email.com`, todos com a senha `Senha@123`.",
+        "operationId" : "login",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Autenticado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "E-mail ou senha incorretos (mesma mensagem nos dois casos)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                  "title" : "Credenciais inválidas",
+                  "status" : 401,
+                  "detail" : "E-mail ou senha incorretos.",
+                  "instance" : "/auth/login"
+                }
+              }
+            }
+          },
+          "429" : {
+            "description" : "Muitas tentativas",
+            "headers" : {
+              "Retry-After" : {
+                "description" : "Segundos até poder tentar de novo",
+                "style" : "simple"
+              }
+            },
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc6585#section-4",
+                  "title" : "Muitas requisições",
+                  "status" : 429,
+                  "detail" : "Você fez muitas tentativas seguidas. Tente de novo em 47 segundos.",
+                  "instance" : "/auth/login"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Dados inválidos",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "validacao" : {
+                    "summary" : "Campo inválido",
+                    "value" : {
+                      "errors" : {
+                        "capacidade" : [ "A capacidade deve ser maior que zero." ],
+                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ]
+                      },
+                      "status" : 400,
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                      "title" : "Dados inválidos"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Erro inesperado (sem stack trace)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "interno" : {
+                    "summary" : "Erro inesperado",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                      "title" : "Erro interno",
+                      "status" : 500,
+                      "detail" : "Ocorreu um erro inesperado. Tente novamente em instantes."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      }
+    },
+    "/api/v1/refugios" : {
+      "get" : {
+        "tags" : [ "Refúgios" ],
+        "summary" : "Lista refúgios, paginada, com filtro por bairro e data",
+        "description" : "Devolve o envelope `{itens, pagina, tamanho, totalItens, totalPaginas}` (a página começa em 1). Ordenação: nome crescente, depois id. Sem `data`, as vagas são as de hoje no fuso de São Paulo. Refúgio inativo aparece com 0 vagas.",
+        "operationId" : "listar",
+        "parameters" : [ {
+          "name" : "bairro",
+          "in" : "query",
+          "description" : "Bairro exato, sem diferenciar maiúsculas (até 100 caracteres)",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "example" : "Penha"
+        }, {
+          "name" : "data",
+          "in" : "query",
+          "description" : "Data para calcular as vagas, `yyyy-MM-dd`. Padrão: hoje em São Paulo",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "example" : "2026-11-27"
+        }, {
+          "name" : "ativo",
+          "in" : "query",
+          "description" : "`true`: só ativos; `false`: só pausados; ausente: todos (a lista do gestor usa sem filtro)",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean"
+          }
+        }, {
+          "name" : "pagina",
+          "in" : "query",
+          "description" : "Número da página, a partir de 1",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 1,
+            "minimum" : 1
+          },
+          "example" : 1
+        }, {
+          "name" : "tamanho",
+          "in" : "query",
+          "description" : "Itens por página, de 1 a 50",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 10,
+            "maximum" : 50,
+            "minimum" : 1
+          },
+          "example" : 10
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Página de refúgios",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PaginaResponseRefugio"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Parâmetro em formato errado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                  "title" : "Dados inválidos",
+                  "status" : 400,
+                  "errors" : {
+                    "data" : [ "Data em formato inválido. Use yyyy-MM-dd, como 2026-11-15." ],
+                    "tamanho" : [ "O tamanho da página deve ficar entre 1 e 50." ]
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, inválido ou expirado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "semToken" : {
+                    "summary" : "Sem token ou token inválido",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Faça login para continuar."
+                    }
+                  },
+                  "expirado" : {
+                    "summary" : "Token expirado (o app volta para o login)",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Sua sessão expirou. Faça login novamente."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "O papel do usuário não permite esta operação",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "papel" : {
+                    "summary" : "Papel sem permissão",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                      "title" : "Acesso negado",
+                      "status" : 403,
+                      "detail" : "Você não tem permissão para isso."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Erro inesperado (sem stack trace)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "interno" : {
+                    "summary" : "Erro inesperado",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                      "title" : "Erro interno",
+                      "status" : 500,
+                      "detail" : "Ocorreu um erro inesperado. Tente novamente em instantes."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "Refúgios" ],
+        "summary" : "Cadastra um refúgio (GESTOR)",
+        "description" : "Todos os campos são obrigatórios. Nome, endereço e bairro são gravados sem espaços nas pontas e o CEP é normalizado para `00000-000`. O novo refúgio começa com vagas = capacidade (ou 0, se inativo).",
+        "operationId" : "criar",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RefugioRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Refúgio criado",
+            "headers" : {
+              "Location" : {
+                "description" : "/api/v1/refugios/{id}",
+                "style" : "simple"
+              }
+            },
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Refugio"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Campos inválidos (errors por campo)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                  "title" : "Dados inválidos",
+                  "status" : 400,
+                  "errors" : {
+                    "cep" : [ "O CEP deve ter 8 dígitos, como 03601-000." ],
+                    "capacidade" : [ "A capacidade deve ser maior que zero." ],
+                    "fecha" : [ "O horário de fechamento deve ser depois da abertura." ]
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, inválido ou expirado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "semToken" : {
+                    "summary" : "Sem token ou token inválido",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Faça login para continuar."
+                    }
+                  },
+                  "expirado" : {
+                    "summary" : "Token expirado (o app volta para o login)",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Sua sessão expirou. Faça login novamente."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "O papel do usuário não permite esta operação",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "papel" : {
+                    "summary" : "Papel sem permissão",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                      "title" : "Acesso negado",
+                      "status" : 403,
+                      "detail" : "Você não tem permissão para isso."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Erro inesperado (sem stack trace)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "interno" : {
+                    "summary" : "Erro inesperado",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                      "title" : "Erro interno",
+                      "status" : 500,
+                      "detail" : "Ocorreu um erro inesperado. Tente novamente em instantes."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ia/guia-do-calor" : {
+      "post" : {
+        "tags" : [ "IA: Guia do Calor" ],
+        "summary" : "Gera o Guia do Calor do idoso logado (IDOSO)",
+        "description" : "Não é um chat: o idoso não digita nada. O guia usa a próxima reserva ATIVA do idoso (data ≥ `data`, padrão hoje em São Paulo).\n\n- `resumo` e `dicas` (3 a 5) vêm do LLM.\n- `refugio` vem do banco e é `null` quando não há reserva futura.\n- `sinaisDeAlerta` e `emergencia` são fixos no código: informação de saúde não depende do modelo.\n- Se o LLM falhar, passar de 3 minutos ou devolver algo que não converte, a resposta continua 200, com o guia padrão e `geradoPorIa: false`.\n- O guia fica em cache por idoso, data e reserva: reabrir a tela não chama o LLM de novo.",
+        "operationId" : "gerar",
+        "requestBody" : {
+          "description" : "Opcional. Sem corpo, vale hoje em São Paulo.",
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/GuiaRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Guia gerado (pela IA ou o padrão)",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuiaDoCalor"
+                },
+                "examples" : {
+                  "comIa" : {
+                    "summary" : "Gerado pela IA, com reserva",
+                    "description" : "comIa",
+                    "value" : {
+                      "resumo" : "Amanhã o calor continua forte. Sua vaga na Biblioteca Municipal da Penha está garantida das 9h às 18h.",
+                      "dicas" : [ {
+                        "titulo" : "Saia cedo",
+                        "descricao" : "Vá até o refúgio antes das 11h, quando o sol ainda está mais fraco."
+                      }, {
+                        "titulo" : "Leve água",
+                        "descricao" : "Beba um copo a cada hora, mesmo sem sede."
+                      }, {
+                        "titulo" : "Roupa leve",
+                        "descricao" : "Use roupas claras e um chapéu no caminho."
+                      } ],
+                      "refugio" : {
+                        "id" : 1,
+                        "nome" : "Biblioteca Municipal da Penha",
+                        "endereco" : "Rua Padre Benedito de Camargo, 400 — Penha",
+                        "data" : "2026-11-27",
+                        "abre" : "09:00",
+                        "fecha" : "18:00",
+                        "acessivel" : true
+                      },
+                      "sinaisDeAlerta" : [ "Tontura ou confusão", "Dor de cabeça forte", "Pele quente e seca", "Náusea ou vômito" ],
+                      "emergencia" : "Se sentir algum desses sinais, ligue 192 (SAMU).",
+                      "geradoPorIa" : true
+                    }
+                  },
+                  "fallback" : {
+                    "summary" : "LLM fora do ar, sem reserva",
+                    "description" : "fallback",
+                    "value" : {
+                      "resumo" : "Hoje o calor pede cuidado. Procure um lugar fresco para passar as horas mais quentes.",
+                      "dicas" : [ {
+                        "titulo" : "Procure um refúgio",
+                        "descricao" : "Veja no app os refúgios abertos perto de você e reserve sua vaga."
+                      }, {
+                        "titulo" : "Leve água",
+                        "descricao" : "Beba um copo de água a cada hora, mesmo sem sede."
+                      }, {
+                        "titulo" : "Roupa leve",
+                        "descricao" : "Use roupas claras e soltas e um chapéu no caminho."
+                      }, {
+                        "titulo" : "Evite o sol forte",
+                        "descricao" : "Entre 10h e 16h, fique na sombra ou em lugar fresco."
+                      } ],
+                      "refugio" : null,
+                      "sinaisDeAlerta" : [ "Tontura ou confusão", "Dor de cabeça forte", "Pele quente e seca", "Náusea ou vômito" ],
+                      "emergencia" : "Se sentir algum desses sinais, ligue 192 (SAMU).",
+                      "geradoPorIa" : false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Dados inválidos",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "validacao" : {
+                    "summary" : "Campo inválido",
+                    "value" : {
+                      "errors" : {
+                        "capacidade" : [ "A capacidade deve ser maior que zero." ],
+                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ]
+                      },
+                      "status" : 400,
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                      "title" : "Dados inválidos"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, inválido ou expirado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "semToken" : {
+                    "summary" : "Sem token ou token inválido",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Faça login para continuar."
+                    }
+                  },
+                  "expirado" : {
+                    "summary" : "Token expirado (o app volta para o login)",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Sua sessão expirou. Faça login novamente."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "O papel do usuário não permite esta operação",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "papel" : {
+                    "summary" : "Papel sem permissão",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                      "title" : "Acesso negado",
+                      "status" : 403,
+                      "detail" : "Você não tem permissão para isso."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Erro inesperado (sem stack trace)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "interno" : {
+                    "summary" : "Erro inesperado",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                      "title" : "Erro interno",
+                      "status" : 500,
+                      "detail" : "Ocorreu um erro inesperado. Tente novamente em instantes."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cep/{cep}" : {
+      "get" : {
+        "tags" : [ "CEP" ],
+        "summary" : "Endereço de um CEP (GESTOR)",
+        "description" : "Aceita `03601000` ou `03601-000`. Mapeamento do ViaCEP: `logradouro` → `endereco`, `localidade` → `cidade`.",
+        "operationId" : "consultar",
+        "parameters" : [ {
+          "name" : "cep",
+          "in" : "path",
+          "description" : "CEP com 8 dígitos, com ou sem hífen",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "01001-000"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Endereço encontrado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CepResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "CEP sem 8 dígitos",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                  "title" : "Dados inválidos",
+                  "status" : 400,
+                  "errors" : {
+                    "cep" : [ "O CEP deve ter 8 dígitos, como 03601-000." ]
+                  }
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "CEP não existe",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+                  "title" : "CEP não encontrado",
+                  "status" : 404,
+                  "detail" : "Não encontramos o CEP 99999-999.",
+                  "instance" : "/api/v1/cep/99999999"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "ViaCEP fora do ar ou sem resposta",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "example" : {
+                  "type" : "https://tools.ietf.org/html/rfc9110#section-15.6.4",
+                  "title" : "Serviço indisponível",
+                  "status" : 503,
+                  "detail" : "Não foi possível consultar o CEP agora. Tente de novo em instantes.",
+                  "instance" : "/api/v1/cep/03601000"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, inválido ou expirado",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "semToken" : {
+                    "summary" : "Sem token ou token inválido",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Faça login para continuar."
+                    }
+                  },
+                  "expirado" : {
+                    "summary" : "Token expirado (o app volta para o login)",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                      "title" : "Não autenticado",
+                      "status" : 401,
+                      "detail" : "Sua sessão expirou. Faça login novamente."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "O papel do usuário não permite esta operação",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "papel" : {
+                    "summary" : "Papel sem permissão",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                      "title" : "Acesso negado",
+                      "status" : 403,
+                      "detail" : "Você não tem permissão para isso."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Erro inesperado (sem stack trace)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetails"
+                },
+                "examples" : {
+                  "interno" : {
+                    "summary" : "Erro inesperado",
+                    "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                      "title" : "Erro interno",
+                      "status" : 500,
+                      "detail" : "Ocorreu um erro inesperado. Tente novamente em instantes."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "ProblemDetails" : {
+        "description" : "Erro no formato RFC 7807, igual ao do .NET. O app mostra `detail` ao usuário e usa `errors` para marcar cada campo do formulário.",
+        "properties" : {
+          "type" : {
+            "type" : "string",
+            "description" : "Link da RFC que descreve o status",
+            "example" : "https://tools.ietf.org/html/rfc9110#section-15.5.10"
+          },
+          "title" : {
+            "type" : "string",
+            "description" : "Título curto, em português",
+            "example" : "Refúgio com reservas"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Status HTTP",
+            "example" : 409
+          },
+          "detail" : {
+            "type" : "string",
+            "description" : "Mensagem pronta para exibir ao usuário",
+            "example" : "Este refúgio tem reservas ativas para hoje ou datas futuras. Desative-o em vez de excluir."
+          },
+          "instance" : {
+            "type" : "string",
+            "description" : "Caminho da requisição",
+            "example" : "/api/v1/refugios/1"
+          },
+          "errors" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "array",
+              "description" : "Só em erros de validação (400): campo em camelCase → mensagens",
+              "example" : {
+                "capacidade" : [ "A capacidade deve ser maior que zero." ]
+              },
+              "items" : {
+                "type" : "string",
+                "description" : "Só em erros de validação (400): campo em camelCase → mensagens",
+                "example" : "{\"capacidade\":[\"A capacidade deve ser maior que zero.\"]}"
+              }
+            },
+            "description" : "Só em erros de validação (400): campo em camelCase → mensagens",
+            "example" : {
+              "capacidade" : [ "A capacidade deve ser maior que zero." ]
+            }
+          }
+        }
+      },
+      "RefugioRequest" : {
+        "type" : "object",
+        "description" : "Corpo de POST e PUT. Todos os campos são obrigatórios; `fecha` deve ser depois de `abre`.",
+        "properties" : {
+          "nome" : {
+            "type" : "string",
+            "example" : "Biblioteca Municipal da Penha",
+            "maxLength" : 150,
+            "minLength" : 0
+          },
+          "tipo" : {
+            "type" : "string",
+            "enum" : [ "BIBLIOTECA", "CENTRO_COMUNITARIO", "CEU", "UBS", "ESCOLA", "IGREJA", "OUTRO" ],
+            "example" : "BIBLIOTECA"
+          },
+          "cep" : {
+            "type" : "string",
+            "description" : "8 dígitos, com ou sem hífen; gravado como 00000-000",
+            "example" : "03601-000",
+            "minLength" : 1
+          },
+          "endereco" : {
+            "type" : "string",
+            "example" : "Rua Exemplo, 100",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "bairro" : {
+            "type" : "string",
+            "example" : "Penha",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "capacidade" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "De 1 a 10.000 pessoas por dia",
+            "example" : 20,
+            "maximum" : 10000
+          },
+          "abre" : {
+            "type" : "string",
+            "example" : "08:00",
+            "pattern" : "HH:mm"
+          },
+          "fecha" : {
+            "type" : "string",
+            "example" : "20:00",
+            "pattern" : "HH:mm"
+          },
+          "acessivel" : {
+            "type" : "boolean",
+            "example" : true
+          },
+          "ativo" : {
+            "type" : "boolean",
+            "description" : "false pausa o refúgio (0 vagas, sem novas reservas)",
+            "example" : true
+          }
+        },
+        "required" : [ "abre", "acessivel", "ativo", "bairro", "capacidade", "cep", "endereco", "fecha", "nome", "tipo" ]
+      },
+      "Refugio" : {
+        "type" : "object",
+        "description" : "Refúgio climático, no mesmo formato do backend .NET",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64",
+            "example" : 1
+          },
+          "nome" : {
+            "type" : "string",
+            "example" : "Biblioteca Municipal da Penha"
+          },
+          "tipo" : {
+            "type" : "string",
+            "enum" : [ "BIBLIOTECA", "CENTRO_COMUNITARIO", "CEU", "UBS", "ESCOLA", "IGREJA", "OUTRO" ],
+            "example" : "BIBLIOTECA"
+          },
+          "cep" : {
+            "type" : "string",
+            "description" : "Sempre no formato 00000-000",
+            "example" : "03601-000"
+          },
+          "endereco" : {
+            "type" : "string",
+            "example" : "Rua Padre Benedito de Camargo, 400"
+          },
+          "bairro" : {
+            "type" : "string",
+            "example" : "Penha"
+          },
+          "capacidade" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Total de vagas por dia",
+            "example" : 40
+          },
+          "vagasDisponiveis" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "capacidade − reservas ATIVA da data; 0 se o refúgio estiver inativo",
+            "example" : 12
+          },
+          "abre" : {
+            "type" : "string",
+            "example" : "09:00",
+            "pattern" : "HH:mm"
+          },
+          "fecha" : {
+            "type" : "string",
+            "example" : "18:00",
+            "pattern" : "HH:mm"
+          },
+          "acessivel" : {
+            "type" : "boolean",
+            "description" : "Acessível para cadeira de rodas",
+            "example" : true
+          },
+          "ativo" : {
+            "type" : "boolean",
+            "description" : "false = pausado pelo gestor (não aceita reservas)",
+            "example" : true
+          }
+        }
+      },
+      "RegistrarRequest" : {
+        "type" : "object",
+        "properties" : {
+          "nome" : {
+            "type" : "string",
+            "example" : "Ana Lima",
+            "maxLength" : 150,
+            "minLength" : 0
+          },
+          "email" : {
+            "type" : "string",
+            "format" : "email",
+            "example" : "ana.lima@email.com",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "senha" : {
+            "type" : "string",
+            "description" : "8 a 100 caracteres, com letra maiúscula, minúscula e número",
+            "example" : "Senha@123",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "email", "nome", "senha" ]
+      },
+      "UsuarioResumo" : {
+        "type" : "object",
+        "description" : "Dados básicos do usuário",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64",
+            "example" : 1
+          },
+          "nome" : {
+            "type" : "string",
+            "example" : "Gestora Refúgio"
+          },
+          "email" : {
+            "type" : "string",
+            "example" : "gestor@refugio.com"
+          },
+          "papel" : {
+            "type" : "string",
+            "description" : "IDOSO ou GESTOR",
+            "enum" : [ "IDOSO", "GESTOR" ],
+            "example" : "GESTOR"
+          }
+        }
+      },
+      "LoginRequest" : {
+        "type" : "object",
+        "properties" : {
+          "email" : {
+            "type" : "string",
+            "example" : "gestor@refugio.com",
+            "minLength" : 1
+          },
+          "senha" : {
+            "type" : "string",
+            "example" : "Senha@123",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "email", "senha" ]
+      },
+      "LoginResponse" : {
+        "type" : "object",
+        "description" : "Resposta do login",
+        "properties" : {
+          "token" : {
+            "type" : "string",
+            "description" : "JWT HS256 para o header Authorization: Bearer <token>; vale no Java e no .NET",
+            "example" : "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwicm9sZSI6IkdFU1RPUiJ9.assinatura"
+          },
+          "expiraEm" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "Expiração do token (120 min), com o offset de São Paulo",
+            "example" : "2026-11-17T17:00:00-03:00"
+          },
+          "usuario" : {
+            "$ref" : "#/components/schemas/UsuarioResumo"
+          }
+        }
+      },
+      "GuiaRequest" : {
+        "type" : "object",
+        "description" : "Corpo opcional do Guia do Calor",
+        "properties" : {
+          "data" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "A partir de qual dia buscar a reserva (yyyy-MM-dd). Padrão: hoje em São Paulo",
+            "example" : "2026-11-27"
+          }
+        }
+      },
+      "DicaDoGuia" : {
+        "type" : "object",
+        "description" : "Dica prática gerada pelo LLM",
+        "properties" : {
+          "titulo" : {
+            "type" : "string",
+            "description" : "Até 4 palavras",
+            "example" : "Saia cedo"
+          },
+          "descricao" : {
+            "type" : "string",
+            "description" : "Até 20 palavras",
+            "example" : "Vá até o refúgio antes das 11h, quando o sol ainda está mais fraco."
+          }
+        }
+      },
+      "GuiaDoCalor" : {
+        "type" : "object",
+        "description" : "Guia de proteção contra o calor, desenhado pela tela Guia do Calor do app",
+        "properties" : {
+          "resumo" : {
+            "type" : "string",
+            "description" : "Até 2 frases, gerado pelo LLM",
+            "example" : "Amanhã o calor continua forte. Sua vaga na Biblioteca Municipal da Penha está garantida das 9h às 18h."
+          },
+          "dicas" : {
+            "type" : "array",
+            "description" : "De 3 a 5 dicas práticas, geradas pelo LLM",
+            "items" : {
+              "$ref" : "#/components/schemas/DicaDoGuia"
+            }
+          },
+          "refugio" : {
+            "$ref" : "#/components/schemas/RefugioDoGuia",
+            "description" : "Refúgio da próxima reserva ATIVA, vindo do banco; null sem reserva futura"
+          },
+          "sinaisDeAlerta" : {
+            "type" : "array",
+            "description" : "Fixos no código, nunca gerados pelo modelo",
+            "example" : [ "Tontura ou confusão", "Dor de cabeça forte", "Pele quente e seca", "Náusea ou vômito" ],
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "emergencia" : {
+            "type" : "string",
+            "description" : "Fixo no código",
+            "example" : "Se sentir algum desses sinais, ligue 192 (SAMU)."
+          },
+          "geradoPorIa" : {
+            "type" : "boolean",
+            "description" : "false quando o LLM falhou e o guia padrão foi usado"
+          }
+        }
+      },
+      "RefugioDoGuia" : {
+        "type" : "object",
+        "description" : "Refúgio reservado pelo idoso",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64",
+            "example" : 1
+          },
+          "nome" : {
+            "type" : "string",
+            "example" : "Biblioteca Municipal da Penha"
+          },
+          "endereco" : {
+            "type" : "string",
+            "example" : "Rua Padre Benedito de Camargo, 400 — Penha"
+          },
+          "data" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "Data da reserva",
+            "example" : "2026-11-27"
+          },
+          "abre" : {
+            "type" : "string",
+            "example" : "09:00"
+          },
+          "fecha" : {
+            "type" : "string",
+            "example" : "18:00"
+          },
+          "acessivel" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "PaginaResponseRefugio" : {
+        "type" : "object",
+        "description" : "Envelope de paginação do contrato com o app",
+        "properties" : {
+          "itens" : {
+            "type" : "array",
+            "description" : "Itens da página",
+            "items" : {
+              "$ref" : "#/components/schemas/Refugio"
+            }
+          },
+          "pagina" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Página atual, a partir de 1",
+            "example" : 1
+          },
+          "tamanho" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Itens por página (1 a 50)",
+            "example" : 10
+          },
+          "totalItens" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Total de itens com os filtros aplicados",
+            "example" : 23
+          },
+          "totalPaginas" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Total de páginas",
+            "example" : 3
+          }
+        }
+      },
+      "CepResponse" : {
+        "type" : "object",
+        "description" : "Endereço do CEP, para preencher o formulário do refúgio",
+        "properties" : {
+          "cep" : {
+            "type" : "string",
+            "example" : "03601-000"
+          },
+          "endereco" : {
+            "type" : "string",
+            "description" : "logradouro do ViaCEP",
+            "example" : "Rua Padre Benedito de Camargo"
+          },
+          "bairro" : {
+            "type" : "string",
+            "example" : "Penha"
+          },
+          "cidade" : {
+            "type" : "string",
+            "description" : "localidade do ViaCEP",
+            "example" : "São Paulo"
+          },
+          "uf" : {
+            "type" : "string",
+            "example" : "SP"
+          }
+        }
+      }
+    },
+    "securitySchemes" : {
+      "Bearer" : {
+        "type" : "http",
+        "description" : "Token devolvido por POST /auth/login (do Java ou do .NET: os dois emitem o mesmo JWT). Cole só o token, sem o prefixo Bearer.",
+        "scheme" : "bearer",
+        "bearerFormat" : "JWT"
+      }
+    }
+  }
+}
