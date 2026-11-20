@@ -324,12 +324,7 @@ rede. A versão web do Expo (`http://localhost:8081`) já está liberada no CORS
 
 ## Deploy
 
-Link do deploy: _a preencher_ (o refugio-service precisa de uma URL acessível pelo celular — nuvem ou o PC na
-mesma rede Wi-Fi).
-
-## Vídeo pitch
-
-Link: _a preencher_
+Link do deploy: _https://saveus-refugio.onrender.com_
 
 ---
 
