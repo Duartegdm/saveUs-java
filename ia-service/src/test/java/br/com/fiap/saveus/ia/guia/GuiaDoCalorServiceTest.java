@@ -3,6 +3,7 @@ package br.com.fiap.saveus.ia.guia;
 import br.com.fiap.saveus.common.erro.ApiException;
 import br.com.fiap.saveus.ia.guia.dto.ContextoGuia;
 import br.com.fiap.saveus.ia.guia.dto.GuiaGerado;
+import br.com.fiap.saveus.ia.rag.BaseDeConhecimento;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -63,6 +64,18 @@ class GuiaDoCalorServiceTest {
     }
 
     @Test
+    void promptLevaAsOrientacoesRecuperadasDaBase() {
+        AtomicReference<Prompt> enviado = new AtomicReference<>();
+        GuiaDoCalorService service = servico(enviado, "{}");
+
+        String comReserva = service.montarContexto(CONTEXTO);
+        String semReserva = service.montarContexto(new ContextoGuia("José", LocalDate.of(2026, 11, 26), null, null));
+
+        assertThat(comReserva).contains("<referencias>", "Ir ao refúgio no horário certo", "Beber água antes de sentir sede");
+        assertThat(semReserva).contains("Quando não há reserva em um refúgio");
+    }
+
+    @Test
     void respostaQueNaoConverteOuIncompletaVira503() {
         assertThatThrownBy(() -> servico(new AtomicReference<>(), "isto não é JSON").gerar(CONTEXTO))
                 .isInstanceOf(ApiException.class);
@@ -80,6 +93,6 @@ class GuiaDoCalorServiceTest {
                 return new ChatResponse(List.of(new Generation(new AssistantMessage(respostaDoModelo))));
             }
         };
-        return new GuiaDoCalorService(ChatClient.builder(modelo), RELOGIO);
+        return new GuiaDoCalorService(ChatClient.builder(modelo), new BaseDeConhecimento(), RELOGIO);
     }
 }
