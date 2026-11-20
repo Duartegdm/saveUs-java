@@ -75,12 +75,12 @@
                   "validacao" : {
                     "summary" : "Campo inválido",
                     "value" : {
+                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                      "status" : 400,
                       "errors" : {
                         "fecha" : [ "O horário de fechamento deve ser depois da abertura." ],
                         "capacidade" : [ "A capacidade deve ser maior que zero." ]
                       },
-                      "status" : 400,
-                      "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
                       "title" : "Dados inválidos"
                     }
                   }

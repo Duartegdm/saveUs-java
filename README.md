@@ -2,6 +2,13 @@
 
 **Global Solution 2026/2 · CitizenTech · Java Advanced**
 
+| Nome | RM |
+|---|---|
+| Anna Clara Russo Luca | 561928 |
+| Gabriel Duarte Maciel | 565754 |
+| Tiago Guedes da Costa | 564731 |
+| Gustavo Tavares da Silva | 562827 |
+
 O SaveUs ajuda pessoas idosas a passar as ondas de calor em segurança: o idoso encontra e reserva vaga em um
 **refúgio climático** (biblioteca, CEU, UBS, centro comunitário…) perto de casa, e o **gestor** mantém os refúgios.
 Idosos são o grupo mais vulnerável ao calor extremo, e muitos não têm ar-condicionado nem informação clara sobre
@@ -17,6 +24,7 @@ app mobile fala com os dois sem diferença.
 | `saveUs-java` (este) | Gestor, login, CEP e Guia do Calor com IA |
 | `refugio_.net` | Idoso: refúgios (leitura), reservas, perfil |
 | `saveUs-mobile` | App React Native (Expo) que consome as duas APIs |
+| `saveUs-database` | Regras de negócio em PL/SQL sobre as mesmas tabelas `T_RFG_*`, auditoria e versão MongoDB |
 
 ---
 
@@ -84,7 +92,7 @@ Segredos nunca ficam no repositório: tudo vem de variáveis de ambiente (veja `
 | `SPRING_AI_PROVEDOR` | ia-service | `openai` (padrão) ou `ollama` para rodar offline |
 | `OLLAMA_BASE_URL`, `OLLAMA_MODELO` | ia-service | Só com `ollama`: padrão `http://localhost:11434` e `llama3.2` |
 | `EUREKA_URL` | os dois serviços | Padrão `http://localhost:8761/eureka/` |
-| `IA_TIMEOUT_MS` | refugio-service | Tempo máximo de espera pela IA; padrão `180000` (3 min) |
+| `IA_TIMEOUT_MS` | refugio-service | Tempo máximo de espera pela IA; padrão `20000` (20 s) |
 
 ### 2. Pelo terminal
 
@@ -119,9 +127,10 @@ docker compose up -d --build
 ./gradlew test
 ```
 
-46 testes: hash de senha contra o hash real do .NET, JWT (claims, expiração, papéis), contrato JSON e de erro
+62 testes: hash de senha contra o hash real do .NET, JWT (claims, expiração, papéis), contrato JSON e de erro
 de todos os endpoints (MockMvc; nos testes automatizados o Oracle é substituído por um H2 em memória), paginação, regras de exclusão, fallback do guia, limite de requisições e o
-fluxo do Spring AI com um `ChatModel` falso e o documento OpenAPI dos dois serviços.
+fluxo do Spring AI com um `ChatModel` falso, a recuperação do RAG (12 perguntas rotuladas, hit@3) e o documento
+OpenAPI dos dois serviços.
 
 ### Swagger / OpenAPI
 
@@ -247,11 +256,17 @@ Não é um chat: o idoso abre a tela e recebe um guia curto **feito a partir da 
    porque informação de saúde e telefone de emergência não podem depender do modelo.
 
 **Proteções:** o prompt de sistema proíbe inventar endereços, horários e telefones, diagnóstico ou remédio; o
-contexto vai delimitado como dado; temperatura 0,3. **Fallback:** se o LLM falhar, passar de 3 minutos ou devolver algo
+contexto vai delimitado como dado; temperatura 0,3. **Fallback:** se o LLM falhar, passar de 20 segundos ou devolver algo
 que não converte, a resposta é 200 com um guia padrão escrito no código e `geradoPorIa: false` — para o idoso, um
 guia genérico é melhor que uma tela de erro. **Cache:** o guia fica guardado por contexto (idoso, data e reserva)
 com `@Cacheable`, então reabrir a tela não chama o LLM de novo; se a reserva mudar, o contexto muda e um guia novo
 é gerado.
+
+**RAG básico:** antes de chamar o modelo, o `ia-service` recupera por BM25 os 4 trechos mais relevantes da base
+de orientações (`ia-service/src/main/resources/conhecimento/calor-e-saude.md`) para a situação do idoso (com ou
+sem reserva, refúgio acessível ou não) e os envia entre `<referencias>`. O conteúdo de saúde vem dessa base
+revisada pelo grupo; o modelo só adapta o texto à reserva. Fontes, avaliação e limitações em
+[`docs/ia-rag.md`](docs/ia-rag.md).
 
 Provedor: **OpenAI** (`gpt-4o-mini` por padrão, configurável em `OPENAI_MODELO`) pelo starter
 `spring-ai-starter-model-openai`. O modelo roda nos servidores da OpenAI, então o ia-service não precisa de GPU
@@ -292,7 +307,7 @@ e responde em poucos segundos. Para rodar offline, `SPRING_AI_PROVEDOR=ollama` t
 
 ## Integração com o app mobile
 
-O app ganha um segundo cliente HTTP apontando para o `refugio-service`. O login continua no .NET, e o token dele
+Implementado no `saveUs-mobile` (cliente `apiJava`). O app tem um segundo cliente HTTP apontando para o `refugio-service`. O login continua no .NET, e o token dele
 vale aqui porque chave e claims são os mesmos.
 
 | Arquivo do app | Mudança |
@@ -300,7 +315,7 @@ vale aqui porque chave e claims são os mesmos.
 | `.env` | `EXPO_PUBLIC_JAVA_API_URL` com a URL do refugio-service |
 | `src/services/api/client.ts` | Fábrica `criarCliente(baseURL)` com os mesmos interceptors; exporta `api` (.NET) e `apiJava` |
 | `src/features/gestor/*.service.ts` | Listar, criar, editar, excluir e CEP usam `apiJava` |
-| `src/features/guia-calor/guia.service.ts` | `apiJava.post('/api/v1/ia/guia-do-calor', ..., { timeout: 190_000 })` |
+| `src/features/guia-calor/guia.service.ts` | `apiJava.post('/api/v1/ia/guia-do-calor', ..., { timeout: 30_000 })` |
 
 Rodando local: emulador Android usa `http://10.0.2.2:8080`; celular físico usa `http://<IP do PC>:8080` na mesma
 rede. A versão web do Expo (`http://localhost:8081`) já está liberada no CORS (`CORS_ORIGENS`).

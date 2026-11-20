@@ -96,8 +96,8 @@
                     "summary" : "Campo inválido",
                     "value" : {
                       "errors" : {
-                        "capacidade" : [ "A capacidade deve ser maior que zero." ],
-                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ]
+                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ],
+                        "capacidade" : [ "A capacidade deve ser maior que zero." ]
                       },
                       "status" : 400,
                       "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
@@ -396,8 +396,8 @@
                     "summary" : "Campo inválido",
                     "value" : {
                       "errors" : {
-                        "capacidade" : [ "A capacidade deve ser maior que zero." ],
-                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ]
+                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ],
+                        "capacidade" : [ "A capacidade deve ser maior que zero." ]
                       },
                       "status" : 400,
                       "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
@@ -679,8 +679,8 @@
                     "summary" : "Campo inválido",
                     "value" : {
                       "errors" : {
-                        "capacidade" : [ "A capacidade deve ser maior que zero." ],
-                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ]
+                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ],
+                        "capacidade" : [ "A capacidade deve ser maior que zero." ]
                       },
                       "status" : 400,
                       "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
@@ -1012,7 +1012,7 @@
       "post" : {
         "tags" : [ "IA: Guia do Calor" ],
         "summary" : "Gera o Guia do Calor do idoso logado (IDOSO)",
-        "description" : "Não é um chat: o idoso não digita nada. O guia usa a próxima reserva ATIVA do idoso (data ≥ `data`, padrão hoje em São Paulo).\n\n- `resumo` e `dicas` (3 a 5) vêm do LLM.\n- `refugio` vem do banco e é `null` quando não há reserva futura.\n- `sinaisDeAlerta` e `emergencia` são fixos no código: informação de saúde não depende do modelo.\n- Se o LLM falhar, passar de 3 minutos ou devolver algo que não converte, a resposta continua 200, com o guia padrão e `geradoPorIa: false`.\n- O guia fica em cache por idoso, data e reserva: reabrir a tela não chama o LLM de novo.",
+        "description" : "Não é um chat: o idoso não digita nada. O guia usa a próxima reserva ATIVA do idoso (data ≥ `data`, padrão hoje em São Paulo).\n\n- `resumo` e `dicas` (3 a 5) vêm do LLM.\n- `refugio` vem do banco e é `null` quando não há reserva futura.\n- `sinaisDeAlerta` e `emergencia` são fixos no código: informação de saúde não depende do modelo.\n- Se o LLM falhar, passar de 20 segundos ou devolver algo que não converte, a resposta continua 200, com o guia padrão e `geradoPorIa: false`.\n- O guia fica em cache por idoso, data e reserva: reabrir a tela não chama o LLM de novo.",
         "operationId" : "gerar",
         "requestBody" : {
           "description" : "Opcional. Sem corpo, vale hoje em São Paulo.",
@@ -1102,8 +1102,8 @@
                     "summary" : "Campo inválido",
                     "value" : {
                       "errors" : {
-                        "capacidade" : [ "A capacidade deve ser maior que zero." ],
-                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ]
+                        "fecha" : [ "O horário de fechamento deve ser depois da abertura." ],
+                        "capacidade" : [ "A capacidade deve ser maior que zero." ]
                       },
                       "status" : 400,
                       "type" : "https://tools.ietf.org/html/rfc9110#section-15.5.1",
