@@ -36,8 +36,8 @@ spring:
         config:
           ia-service:
             connect-timeout: 3000
-            # Se o LLM passar de 3 minutos, o guia padrão é usado.
-            read-timeout: ${IA_TIMEOUT_MS:180000}
+            # Se a IA passar de 20 s, o guia padrão é usado: o idoso não fica esperando com a tela carregando.
+            read-timeout: ${IA_TIMEOUT_MS:20000}
             logger-level: basic
 
   cache:

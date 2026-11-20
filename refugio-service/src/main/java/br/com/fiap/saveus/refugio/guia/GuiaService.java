@@ -41,7 +41,7 @@ public class GuiaService {
     }
 
     /**
-     * Sem @Transactional de propósito: a chamada ao LLM pode levar até 3 minutos e não deve segurar uma conexão do banco.
+     * Sem @Transactional de propósito: a chamada ao LLM pode levar até 20 segundos e não deve segurar uma conexão do banco.
      * A reserva já vem com o refúgio carregado (@EntityGraph), então não há lazy loading fora da transação.
      */
     public GuiaResponse gerar(Long idosoId, LocalDate dataPedida) {
@@ -63,7 +63,7 @@ public class GuiaService {
             guia = ia.gerar(contexto);
             geradoPorIa = true;
         } catch (Exception e) {
-            // LLM fora, timeout de 3 minutos, ia-service fora do Eureka ou saída que não converte:
+            // LLM fora, timeout de 20 segundos, ia-service fora do Eureka ou saída que não converte:
             // para o idoso, um guia genérico é melhor que uma tela de erro.
             log.warn("Guia do Calor sem IA para o idoso {}: {}", idosoId, e.getMessage());
             guia = GuiaPadrao.para(contexto, hoje);
