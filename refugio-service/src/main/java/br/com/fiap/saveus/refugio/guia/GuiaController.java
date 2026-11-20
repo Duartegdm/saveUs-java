@@ -63,7 +63,7 @@ public class GuiaController {
                     - `resumo` e `dicas` (3 a 5) vêm do LLM.
                     - `refugio` vem do banco e é `null` quando não há reserva futura.
                     - `sinaisDeAlerta` e `emergencia` são fixos no código: informação de saúde não depende do modelo.
-                    - Se o LLM falhar, passar de 3 minutos ou devolver algo que não converte, a resposta continua 200, \
+                    - Se o LLM falhar, passar de 20 segundos ou devolver algo que não converte, a resposta continua 200, \
                     com o guia padrão e `geradoPorIa: false`.
                     - O guia fica em cache por idoso, data e reserva: reabrir a tela não chama o LLM de novo.""")
     @ApiResponse(responseCode = "200", description = "Guia gerado (pela IA ou o padrão)",

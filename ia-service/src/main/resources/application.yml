@@ -18,7 +18,7 @@ spring:
         speech: none
         transcription: none
       moderation: none
-    # Sem novas tentativas: o refugio-service espera até 3 minutos e cai no guia padrão se passar disso.
+    # Sem novas tentativas: o refugio-service espera até 20 s e cai no guia padrão se passar disso.
     retry:
       max-attempts: 1
     ollama:
@@ -39,8 +39,8 @@ spring:
   http:
     client:
       connect-timeout: 5s
-      # Um pouco abaixo dos 3 min do refugio-service, para o ia-service responder 503 antes do Feign desistir.
-      read-timeout: ${LLM_TIMEOUT:175s}
+      # Um pouco abaixo dos 20 s do refugio-service, para o ia-service responder 503 antes do Feign desistir.
+      read-timeout: ${LLM_TIMEOUT:18s}
 
 saveus:
   jwt:
